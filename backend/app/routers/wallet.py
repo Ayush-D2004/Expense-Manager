@@ -7,10 +7,12 @@ from app import models, schemas, auth
 from app.database import get_db
 from app.config import get_settings
 from app.services.ai_verify import verify_receipt
-from app.services.payment import create_razorpay_order, verify_razorpay_payment
+from app.websocket import manager
+from passlib.context import CryptContext
 
 settings = get_settings()
 router = APIRouter(prefix="/api/wallet", tags=["Wallet"])
+pin_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 @router.get("/balance", response_model=schemas.WalletResponse)
@@ -24,33 +26,86 @@ def get_balance(
     return wallet
 
 
-@router.post("/spend", response_model=schemas.TransactionResponse, status_code=201)
-def create_spend(
-    payload: schemas.SpendRequest,
-    current_user: models.User = Depends(auth.require_employee),
+@router.post("/setup-pin")
+def setup_upi_pin(
+    payload: schemas.SetPinRequest,
+    current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db),
 ):
     wallet = db.query(models.Wallet).filter(models.Wallet.user_id == current_user.id).first()
     if not wallet:
         raise HTTPException(status_code=404, detail="Wallet not found")
 
-    available = wallet.limit - wallet.spent_amount
-    if payload.amount > available:
+    # If has existing PIN block it
+    if wallet.upi_pin_hash is not None:
         raise HTTPException(
-            status_code=400,
-            detail=f"Amount ₹{payload.amount} exceeds remaining limit ₹{available:.2f}",
+            status_code=403,
+            detail="PIN already set. Please request a change if you forgot it."
         )
 
+    wallet.upi_pin_hash = pin_context.hash(payload.pin)
+    wallet.pin_change_requested = False
+    db.commit()
+    return {"message": "UPI PIN set successfully"}
+
+
+@router.post("/request-pin-change")
+async def request_pin_change(
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db),
+):
+    wallet = db.query(models.Wallet).filter(models.Wallet.user_id == current_user.id).first()
+    if not wallet:
+        raise HTTPException(status_code=404, detail="Wallet not found")
+    wallet.pin_change_requested = True
+    db.commit()
+    await manager.broadcast_event("PIN_CHANGE_REQUESTED", {
+        "user_id": current_user.id,
+        "name": current_user.name,
+    })
+    return {"message": "PIN change request sent to admin for approval"}
+
+
+@router.post("/spend", response_model=schemas.TransactionResponse, status_code=201)
+async def create_spend(
+    payload: schemas.SpendRequest,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db),
+):
+    wallet = db.query(models.Wallet).filter(models.Wallet.user_id == current_user.id).first()
+    if not wallet:
+        raise HTTPException(status_code=404, detail="Wallet not found")
+
+    is_admin = current_user.role == models.UserRole.ADMIN
+    is_over_limit = False
+
+    if not is_admin:
+        available = wallet.limit - wallet.spent_amount
+        if payload.amount > available:
+            # Over-limit: create as a special pending request instead of hard error
+            is_over_limit = True
+
     txn = models.Transaction(
+        company_id=current_user.company_id,
         wallet_id=wallet.id,
         amount=payload.amount,
         description=payload.description,
         category=payload.category,
         status=models.TransactionStatus.PENDING,
+        is_over_limit_request=is_over_limit,
     )
     db.add(txn)
     db.commit()
     db.refresh(txn)
+
+    if is_over_limit:
+        await manager.broadcast_event("OVER_LIMIT_REQUEST", {
+            "txn_id": txn.id,
+            "user_id": current_user.id,
+            "name": current_user.name,
+            "amount": payload.amount,
+        })
+
     return txn
 
 
@@ -58,7 +113,7 @@ def create_spend(
 async def upload_proof(
     txn_id: int,
     file: UploadFile = File(...),
-    current_user: models.User = Depends(auth.require_employee),
+    current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db),
 ):
     txn = (
@@ -98,13 +153,15 @@ async def upload_proof(
 
     db.commit()
     db.refresh(txn)
+    await manager.broadcast_event("TXN_UPDATED", {"txn_id": txn_id, "status": txn.status.value})
     return txn
 
 
-@router.post("/pay/{txn_id}", response_model=schemas.PaymentInitResponse)
-def initiate_payment(
+@router.post("/pay/{txn_id}", response_model=schemas.TransactionResponse)
+async def pay_with_pin(
     txn_id: int,
-    current_user: models.User = Depends(auth.require_employee),
+    payload: schemas.PayWithPinRequest,
+    current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db),
 ):
     txn = (
@@ -121,71 +178,55 @@ def initiate_payment(
     if txn.status != models.TransactionStatus.APPROVED:
         raise HTTPException(status_code=400, detail="Transaction must be APPROVED before paying")
 
-    order = create_razorpay_order(int(txn.amount * 100), "INR", str(txn.id))
-    txn.razorpay_order_id = order["id"]
-    db.commit()
+    wallet = db.query(models.Wallet).filter(models.Wallet.user_id == current_user.id).first()
 
-    return {
-        "order_id": order["id"],
-        "amount": int(txn.amount * 100),
-        "currency": "INR",
-        "razorpay_key": settings.RAZORPAY_KEY_ID,
-    }
+    if not wallet.upi_pin_hash:
+        raise HTTPException(status_code=400, detail="UPI PIN not set. Please set your PIN first.")
 
+    if not pin_context.verify(payload.upi_pin, wallet.upi_pin_hash):
+        raise HTTPException(status_code=403, detail="Incorrect UPI PIN")
 
-@router.post("/pay/{txn_id}/confirm")
-def confirm_payment(
-    txn_id: int,
-    razorpay_payment_id: str,
-    razorpay_signature: str,
-    current_user: models.User = Depends(auth.require_employee),
-    db: Session = Depends(get_db),
-):
-    txn = (
-        db.query(models.Transaction)
-        .join(models.Wallet)
-        .filter(
-            models.Transaction.id == txn_id,
-            models.Wallet.user_id == current_user.id,
-        )
+    # Deduct from company's central wallet
+    admin_wallet = (
+        db.query(models.Wallet)
+        .join(models.User)
+        .filter(models.User.company_id == current_user.company_id, models.User.role == models.UserRole.COMPANY)
         .first()
     )
-    if not txn:
-        raise HTTPException(status_code=404, detail="Transaction not found")
+    if not admin_wallet:
+        raise HTTPException(status_code=500, detail="Company wallet not found")
+    if admin_wallet.balance < txn.amount:
+        raise HTTPException(status_code=400, detail="Insufficient company wallet balance")
 
-    is_valid = verify_razorpay_payment(txn.razorpay_order_id, razorpay_payment_id, razorpay_signature)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail="Payment verification failed")
+    admin_wallet.balance -= txn.amount
 
-    wallet = db.query(models.Wallet).filter(models.Wallet.id == txn.wallet_id).first()
-    wallet.spent_amount += txn.amount
+    # Update employee spend tracking (not for admin's own spends)
+    if current_user.role == models.UserRole.EMPLOYEE:
+        wallet.spent_amount += txn.amount
 
     txn.status = models.TransactionStatus.PAID
-    txn.razorpay_payment_id = razorpay_payment_id
-
-    admin_wallet = db.query(models.Wallet).join(models.User).filter(
-        models.User.role == models.UserRole.ADMIN
-    ).first()
-    if admin_wallet:
-        admin_wallet.balance -= txn.amount
-
     db.commit()
-    return {"message": "Payment confirmed", "transaction_id": txn.id}
+    db.refresh(txn)
+    await manager.broadcast_event("TXN_PAID", {
+        "txn_id": txn_id,
+        "user_id": current_user.id,
+        "amount": txn.amount,
+    })
+    return txn
 
 
 @router.get("/my-transactions", response_model=List[schemas.TransactionWithProof])
 def my_transactions(
-    current_user: models.User = Depends(auth.require_employee),
+    current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db),
 ):
     wallet = db.query(models.Wallet).filter(models.Wallet.user_id == current_user.id).first()
     if not wallet:
         return []
-    txns = (
+    return (
         db.query(models.Transaction)
         .options(joinedload(models.Transaction.proof))
         .filter(models.Transaction.wallet_id == wallet.id)
         .order_by(models.Transaction.created_at.desc())
         .all()
     )
-    return txns

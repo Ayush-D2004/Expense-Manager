@@ -4,81 +4,98 @@ from datetime import datetime
 from app.models import UserRole, TransactionStatus
 
 
+class CompanyCreate(BaseModel):
+    name: str
+    owner_name: str
+    owner_email: EmailStr
+    owner_password: str
+
+class CompanyResponse(BaseModel):
+    id: int
+    name: str
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
 class UserCreate(BaseModel):
     name: str
     email: EmailStr
     password: str
     role: UserRole = UserRole.EMPLOYEE
 
+class EmployeeCreate(BaseModel):
+    name: str
+    email: EmailStr
+    dob_string: str # Format DDMMYY
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
-
 class UserResponse(BaseModel):
     id: int
+    company_id: int
     name: str
     email: str
     role: UserRole
+    dob_string: Optional[str] = None
     is_active: bool
     created_at: datetime
 
     class Config:
         from_attributes = True
 
-
 class Token(BaseModel):
     access_token: str
     token_type: str
     user: UserResponse
 
-
 class WalletResponse(BaseModel):
     id: int
+    company_id: int
     user_id: int
     balance: float
     spent_amount: float
     limit: float
     currency: str
+    pin_change_requested: bool = False
+    has_pin: bool = False
     user: Optional[UserResponse] = None
 
     class Config:
         from_attributes = True
 
+class SetRoleRequest(BaseModel):
+    role: UserRole
 
 class SetLimitRequest(BaseModel):
     limit: float
 
+class SetPinRequest(BaseModel):
+    pin: str
+
+class PayWithPinRequest(BaseModel):
+    upi_pin: str
 
 class SpendRequest(BaseModel):
     amount: float
     description: str
     category: Optional[str] = None
 
-
 class TransactionResponse(BaseModel):
     id: int
+    company_id: int
     wallet_id: int
     amount: float
     description: str
     category: Optional[str]
     status: TransactionStatus
-    razorpay_order_id: Optional[str]
-    razorpay_payment_id: Optional[str]
+    is_over_limit_request: bool = False
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
-
-
-class TransactionWithProof(TransactionResponse):
-    proof: Optional["ProofResponse"] = None
-
-    class Config:
-        from_attributes = True
-
 
 class ProofResponse(BaseModel):
     id: int
@@ -91,9 +108,6 @@ class ProofResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class TransactionWithProof(TransactionResponse):
+    proof: Optional[ProofResponse] = None
 
-class PaymentInitResponse(BaseModel):
-    order_id: str
-    amount: int
-    currency: str
-    razorpay_key: str

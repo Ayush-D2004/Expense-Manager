@@ -4,7 +4,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from app.database import Base, engine
-from app.routers import auth, admin, wallet
+from app.routers import auth, admin, wallet, company
 from app.websocket import manager
 from app import auth as auth_utils
 from app.database import get_db
@@ -32,6 +32,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(company.router)
 app.include_router(admin.router)
 app.include_router(wallet.router)
 

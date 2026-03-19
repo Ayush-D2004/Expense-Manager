@@ -49,8 +49,14 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 
+def require_company(current_user: models.User = Depends(get_current_user)) -> models.User:
+    if current_user.role != models.UserRole.COMPANY:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Company owner access required")
+    return current_user
+
+
 def require_admin(current_user: models.User = Depends(get_current_user)) -> models.User:
-    if current_user.role != models.UserRole.ADMIN:
+    if current_user.role not in [models.UserRole.ADMIN, models.UserRole.COMPANY]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return current_user
 

@@ -9,7 +9,7 @@ genai.configure(api_key=settings.GEMINI_API_KEY)
 
 async def verify_receipt(file_path: str, claimed_amount: float, description: str) -> dict:
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-2.0-flash")
 
         prompt = f"""
 You are a business expense auditor. Analyze this receipt image.

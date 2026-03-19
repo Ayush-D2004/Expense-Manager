@@ -30,5 +30,8 @@ class ConnectionManager:
         for user_id in list(self.active_connections.keys()):
             await self.send_to_user(user_id, message)
 
+    async def broadcast_event(self, event_type: str, payload: dict = None):
+        await self.broadcast({"type": event_type, "payload": payload or {}})
+
 
 manager = ConnectionManager()

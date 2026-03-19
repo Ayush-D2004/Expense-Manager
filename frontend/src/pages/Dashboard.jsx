@@ -1,9 +1,14 @@
 import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { useGetBalanceQuery, useGetMyTransactionsQuery } from '../store/slices/apiSlice'
+import {
+  useGetBalanceQuery, useGetMyTransactionsQuery,
+  useGetAllTransactionsQuery, useGetReportsQuery,
+  useListEmployeeWalletsQuery, useAdminApproveMutation, useAdminRejectMutation,
+} from '../store/slices/apiSlice'
 import StatusBadge from '../components/StatusBadge'
-import { ArrowUpRight, Wallet, TrendingUp, Clock, PlusCircle } from 'lucide-react'
+import { Wallet, TrendingUp, Clock, PlusCircle, Users, CheckCheck, X } from 'lucide-react'
 import { motion } from 'framer-motion'
+import toast from 'react-hot-toast'
 
 function StatCard({ label, value, icon: Icon, color, delay }) {
   return (
@@ -24,30 +29,113 @@ function StatCard({ label, value, icon: Icon, color, delay }) {
   )
 }
 
-export default function Dashboard() {
-  const { user } = useSelector((s) => s.auth)
+function AdminDashboard() {
   const navigate = useNavigate()
-  const isAdmin = user?.role === 'ADMIN'
+  const { data: reportsData } = useGetReportsQuery()
+  const { data: allTxns = [] } = useGetAllTransactionsQuery()
+  const [adminApprove] = useAdminApproveMutation()
+  const [adminReject] = useAdminRejectMutation()
 
-  const { data: wallet } = useGetBalanceQuery(undefined, { skip: isAdmin })
-  const { data: txns = [] } = useGetMyTransactionsQuery(undefined, { skip: isAdmin })
+  const summary = reportsData?.summary || {}
+  const pending = allTxns.filter((t) => t.status === 'PENDING' || t.status === 'FLAGGED').slice(0, 5)
+  const recent = allTxns.filter((t) => t.status === 'PAID').slice(0, 5)
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="page-title">Admin Dashboard</h1>
+          <p className="text-[var(--text-muted)] text-sm mt-0.5">Company expense overview</p>
+        </div>
+        <button onClick={() => navigate('/admin/topup')} className="btn-primary">
+          <PlusCircle size={15} /> Load Wallet
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Company Balance" value={`₹${(summary.wallet_balance ?? 0).toFixed(2)}`} icon={Wallet} color="bg-brand-600" delay={0} />
+        <StatCard label="Total Paid Out" value={`₹${(summary.total_paid ?? 0).toFixed(2)}`} icon={TrendingUp} color="bg-emerald-500" delay={0.05} />
+        <StatCard label="Pending Actions" value={summary.pending_count ?? 0} icon={Clock} color="bg-amber-500" delay={0.1} />
+        <StatCard label="Employees" value={summary.employee_count ?? 0} icon={Users} color="bg-indigo-500" delay={0.15} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Pending Approvals */}
+        <div className="card overflow-hidden">
+          <div className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-[var(--text-primary)]">Pending Approvals</h2>
+            <button onClick={() => navigate('/admin/transactions')} className="text-xs text-brand-600 hover:underline">View all</button>
+          </div>
+          {pending.length === 0 ? (
+            <div className="p-6 text-center text-sm text-[var(--text-muted)]">All clear — no pending approvals 🎉</div>
+          ) : (
+            <div className="divide-y divide-[var(--border)]">
+              {pending.map((txn) => (
+                <div key={txn.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-[var(--text-primary)] truncate">{txn.description}</p>
+                      {txn.is_over_limit_request && (
+                        <span className="shrink-0 text-xs bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded font-medium">OVER LIMIT</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-[var(--text-muted)]">₹{txn.amount.toFixed(2)} · <StatusBadge status={txn.status} /></p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={async () => { try { await adminApprove(txn.id).unwrap(); toast.success('Approved') } catch { toast.error('Failed') }}}
+                      className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 hover:bg-emerald-200 dark:hover:bg-emerald-800/50 transition-colors"
+                      title="Approve"
+                    >
+                      <CheckCheck size={14} />
+                    </button>
+                    <button
+                      onClick={async () => { try { await adminReject(txn.id).unwrap(); toast.success('Rejected') } catch { toast.error('Failed') }}}
+                      className="p-1.5 rounded-lg bg-rose-100 dark:bg-rose-900/40 text-rose-600 hover:bg-rose-200 dark:hover:bg-rose-800/50 transition-colors"
+                      title="Reject"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Recent Paid */}
+        <div className="card overflow-hidden">
+          <div className="px-5 py-4 border-b border-[var(--border)]">
+            <h2 className="text-sm font-semibold text-[var(--text-primary)]">Recent Payments</h2>
+          </div>
+          {recent.length === 0 ? (
+            <div className="p-6 text-center text-sm text-[var(--text-muted)]">No paid transactions yet</div>
+          ) : (
+            <div className="divide-y divide-[var(--border)]">
+              {recent.map((txn) => (
+                <div key={txn.id} className="px-5 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text-primary)]">{txn.description}</p>
+                    <p className="text-xs text-[var(--text-muted)]">{txn.category || 'Uncategorized'} · {new Date(txn.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <span className="text-sm font-semibold text-emerald-600">-₹{txn.amount.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EmployeeDashboard() {
+  const navigate = useNavigate()
+  const { data: wallet } = useGetBalanceQuery()
+  const { data: txns = [] } = useGetMyTransactionsQuery()
 
   const available = wallet ? wallet.limit - wallet.spent_amount : 0
   const pending = txns.filter((t) => t.status === 'PENDING' || t.status === 'FLAGGED').length
-
-  if (isAdmin) {
-    return (
-      <div>
-        <h1 className="page-title mb-2">Dashboard</h1>
-        <p className="text-[var(--text-muted)] mb-6">Welcome back, {user.name}. You have admin access.</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <StatCard label="Quick Access" value="Employees" icon={Wallet} color="bg-brand-600" delay={0} />
-          <StatCard label="Quick Access" value="Transactions" icon={TrendingUp} color="bg-emerald-500" delay={0.05} />
-          <StatCard label="Quick Access" value="Reports" icon={ArrowUpRight} color="bg-indigo-500" delay={0.1} />
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div>
@@ -56,9 +144,8 @@ export default function Dashboard() {
           <h1 className="page-title">Dashboard</h1>
           <p className="text-[var(--text-muted)] text-sm mt-0.5">Manage your expense wallet</p>
         </div>
-        <button id="new-spend-btn" onClick={() => navigate('/spend/new')} className="btn-primary">
-          <PlusCircle size={15} />
-          New Spend
+        <button id="new-spend-btn" onClick={() => navigate('/dashboard/spend/new')} className="btn-primary">
+          <PlusCircle size={15} /> New Spend
         </button>
       </div>
 
@@ -98,7 +185,12 @@ export default function Dashboard() {
             {txns.slice(0, 5).map((txn) => (
               <div key={txn.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-[var(--bg-secondary)] transition-colors">
                 <div>
-                  <p className="text-sm font-medium text-[var(--text-primary)]">{txn.description}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-[var(--text-primary)]">{txn.description}</p>
+                    {txn.is_over_limit_request && (
+                      <span className="text-xs bg-rose-100 dark:bg-rose-900/40 text-rose-600 px-1.5 py-0.5 rounded font-medium">OVER LIMIT</span>
+                    )}
+                  </div>
                   <p className="text-xs text-[var(--text-muted)]">
                     {txn.category || 'Uncategorized'} · {new Date(txn.created_at).toLocaleDateString()}
                   </p>
@@ -106,15 +198,11 @@ export default function Dashboard() {
                 <div className="flex items-center gap-3">
                   <StatusBadge status={txn.status} />
                   <span className="text-sm font-semibold text-[var(--text-primary)]">₹{txn.amount.toFixed(2)}</span>
-                  {txn.status === 'PENDING' && (
-                    <button onClick={() => navigate(`/proof/${txn.id}`)} className="btn-primary py-1 text-xs">
-                      Upload Proof
-                    </button>
+                  {txn.status === 'PENDING' && !txn.is_over_limit_request && (
+                    <button onClick={() => navigate(`/dashboard/proof/${txn.id}`)} className="btn-primary py-1 text-xs">Upload Proof</button>
                   )}
                   {txn.status === 'APPROVED' && (
-                    <button onClick={() => navigate(`/pay/${txn.id}`)} className="btn-success py-1 text-xs">
-                      Pay Now
-                    </button>
+                    <button onClick={() => navigate(`/dashboard/pay/${txn.id}`)} className="btn-success py-1 text-xs">Pay Now</button>
                   )}
                 </div>
               </div>
@@ -124,4 +212,9 @@ export default function Dashboard() {
       </div>
     </div>
   )
+}
+
+export default function Dashboard() {
+  const { user } = useSelector((s) => s.auth)
+  return (user?.role === 'ADMIN' || user?.role === 'COMPANY') ? <AdminDashboard /> : <EmployeeDashboard />
 }

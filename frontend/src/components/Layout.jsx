@@ -1,28 +1,30 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { useDispatch, useSelector } from 'react-redux'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { useSelector, useDispatch } from 'react-redux'
 import { toggleTheme } from '../store/slices/themeSlice'
 import { logout } from '../store/slices/authSlice'
-import { useGetBalanceQuery } from '../store/slices/apiSlice'
-import {
-  LayoutDashboard, Users, BarChart3, List, PlusCircle,
-  History, Sun, Moon, LogOut, Wallet, ChevronRight
-} from 'lucide-react'
+import { useGetBalanceQuery, useGetReportsQuery } from '../store/slices/apiSlice'
+import useRealtimeSync from '../hooks/useRealtimeSync'
 import { motion } from 'framer-motion'
+import {
+  LayoutDashboard, Receipt, Users, BarChart3, LogOut,
+  Sun, Moon, Wallet, PlusCircle, Lock, List, PlusSquare,
+} from 'lucide-react'
 
-function NavItem({ to, icon: Icon, label }) {
+function NavItem({ to, icon: Icon, label, end = false }) {
   return (
     <NavLink
       to={to}
+      end={end}
       className={({ isActive }) =>
-        `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
+        `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
           isActive
             ? 'bg-brand-600 text-white shadow-sm'
-            : 'text-[var(--text-secondary)] hover:bg-[var(--border)] hover:text-[var(--text-primary)]'
+            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]'
         }`
       }
     >
       <Icon size={17} />
-      <span>{label}</span>
+      {label}
     </NavLink>
   )
 }
@@ -34,98 +36,85 @@ export default function Layout() {
   const { isDark } = useSelector((s) => s.theme)
   const isAdmin = user?.role === 'ADMIN'
 
-  const { data: wallet } = useGetBalanceQuery(undefined, { skip: isAdmin })
+  const isCompany = user?.role === 'COMPANY'
+  const isManager = isAdmin || isCompany
 
-  const handleLogout = () => {
-    dispatch(logout())
-    navigate('/login')
-  }
+  // Real-time WebSocket sync
+  useRealtimeSync()
+
+  // Grab balance data for navbar display
+  const { data: wallet } = useGetBalanceQuery(undefined, { skip: false })
+  const { data: reports } = useGetReportsQuery(undefined, { skip: !isManager })
+
+  const balance = isManager
+    ? reports?.summary?.wallet_balance ?? 0
+    : wallet ? wallet.limit - wallet.spent_amount : 0
+
+  const balanceLabel = isManager ? 'Company Wallet' : 'Available'
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-60 flex-shrink-0 h-full flex flex-col bg-[var(--bg-card)] border-r border-[var(--border)]">
-        <div className="p-5 border-b border-[var(--border)]">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
-              <Wallet size={16} className="text-white" />
-            </div>
-            <span className="font-bold text-[var(--text-primary)] text-base">ExpenseManager</span>
+    <div className="flex h-screen bg-[var(--bg-primary)] overflow-hidden">
+      {/* ── Sidebar ──────────────────────────────────────────────── */}
+      <aside className="w-56 flex flex-col border-r border-[var(--border)] bg-[var(--bg-primary)] shrink-0">
+        <div className="h-16 flex items-center gap-2.5 px-4 border-b border-[var(--border)]">
+          <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
+            <Wallet size={16} className="text-white" />
           </div>
+          <span className="font-bold text-[var(--text-primary)] text-sm tracking-tight">ExpenseManager</span>
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase text-[var(--text-muted)] tracking-widest">
-            Overview
-          </p>
-          <NavItem to="/" icon={LayoutDashboard} label="Dashboard" />
-          <NavItem to="/history" icon={History} label="History" />
+          <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" end />
 
-          {!isAdmin && (
-            <>
-              <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase text-[var(--text-muted)] tracking-widest">
-                Expenses
-              </p>
-              <NavItem to="/spend/new" icon={PlusCircle} label="New Spend" />
-            </>
-          )}
+          {/* Both roles can spend */}
+          <NavItem to="/dashboard/spend/new" icon={PlusCircle} label="New Expense" />
+          <NavItem to="/dashboard/transactions" icon={Receipt} label="Transactions" />
+          <NavItem to="/dashboard/setup-pin" icon={Lock} label="UPI PIN" />
 
-          {isAdmin && (
+          {/* Admin/Company-only */}
+          {isManager && (
             <>
-              <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase text-[var(--text-muted)] tracking-widest">
-                Admin
-              </p>
-              <NavItem to="/admin/employees" icon={Users} label="Employees" />
-              <NavItem to="/admin/txns" icon={List} label="Transactions" />
-              <NavItem to="/admin/reports" icon={BarChart3} label="Reports" />
+              <div className="pt-3 pb-1 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Management</div>
+              <NavItem to="/dashboard/admin/employees" icon={Users} label="Employees" />
+              <NavItem to="/dashboard/admin/transactions" icon={List} label="All Transactions" />
+              <NavItem to="/dashboard/admin/reports" icon={BarChart3} label="Reports" />
+              <NavItem to="/dashboard/admin/topup" icon={PlusSquare} label="Load Wallet" />
             </>
           )}
         </nav>
 
-        {/* User section */}
         <div className="p-3 border-t border-[var(--border)]">
-          <div className="p-3 rounded-lg bg-[var(--bg-secondary)]">
-            <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{user?.name}</p>
-            <p className="text-xs text-[var(--text-muted)] truncate">{user?.email}</p>
-            <span className={`mt-1.5 badge ${user?.role === 'ADMIN' ? 'badge-approved' : 'badge-paid'}`}>
-              {user?.role}
-            </span>
+          <div className="px-3 py-2 mb-1">
+            <p className="text-xs text-[var(--text-muted)] truncate">{user?.name}</p>
+            <p className="text-xs text-[var(--text-muted)] truncate opacity-60">{user?.email}</p>
           </div>
           <button
-            onClick={handleLogout}
-            className="mt-2 w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:bg-[var(--border)] hover:text-coral-500 transition-all"
+            onClick={() => { dispatch(logout()); navigate('/login') }}
+            className="flex items-center gap-2.5 px-3 py-2 w-full text-sm text-[var(--text-muted)] hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
           >
-            <LogOut size={16} />
-            Sign out
+            <LogOut size={15} /> Sign out
           </button>
         </div>
       </aside>
 
-      {/* Main content */}
+      {/* ── Main ─────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Topbar */}
-        <header className="h-14 flex items-center justify-between px-6 bg-[var(--bg-card)] border-b border-[var(--border)] flex-shrink-0">
-          <div className="flex items-center gap-1 text-sm text-[var(--text-muted)]">
-            <span>Good day,</span>
-            <span className="font-semibold text-[var(--text-primary)]">{user?.name?.split(' ')[0]}</span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {!isAdmin && wallet && (
-              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)]">
-                <Wallet size={14} className="text-brand-500" />
-                <span className="text-sm font-semibold text-[var(--text-primary)]">
-                  ₹{(wallet.limit - wallet.spent_amount).toFixed(2)}
-                </span>
-                <span className="text-xs text-[var(--text-muted)]">available</span>
-              </div>
-            )}
-
+        <header className="h-16 border-b border-[var(--border)] flex items-center justify-between px-6 bg-[var(--bg-primary)] shrink-0">
+          <div />
+          <div className="flex items-center gap-4">
+            {/* Balance chip */}
+            <div className="flex items-center gap-2 text-sm bg-[var(--bg-secondary)] px-3 py-1.5 rounded-lg border border-[var(--border)]">
+              <Wallet size={14} className="text-brand-600" />
+              <span className="text-[var(--text-muted)] text-xs">{balanceLabel}:</span>
+              <span className="font-semibold text-[var(--text-primary)]">₹{balance.toFixed(2)}</span>
+            </div>
+            {/* Theme toggle */}
             <button
               id="theme-toggle"
               onClick={() => dispatch(toggleTheme())}
-              className="p-2 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--border)] transition-colors"
-              aria-label="Toggle theme"
+              className="w-9 h-9 flex items-center justify-center rounded-lg border border-[var(--border)] hover:bg-[var(--bg-secondary)] transition-colors text-[var(--text-muted)]"
+              title="Toggle theme"
             >
               {isDark ? <Sun size={16} /> : <Moon size={16} />}
             </button>
@@ -133,13 +122,12 @@ export default function Layout() {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto p-6">
           <motion.div
             key={location.pathname}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
-            className="p-6 max-w-7xl mx-auto"
           >
             <Outlet />
           </motion.div>

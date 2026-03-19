@@ -20,9 +20,10 @@ export default function LoginPage() {
       const data = await login(form).unwrap()
       dispatch(setCredentials({ user: data.user, access_token: data.access_token }))
       toast.success(`Welcome back, ${data.user.name}!`)
-      navigate('/')
+      navigate('/dashboard')
     } catch (err) {
-      toast.error(err?.data?.detail || 'Login failed')
+      const detail = err?.data?.detail
+      toast.error(Array.isArray(detail) ? detail[0].msg : (detail || 'Login failed'))
     }
   }
 
@@ -53,6 +54,7 @@ export default function LoginPage() {
                 placeholder="you@company.com"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
+                autoComplete="email"
                 required
               />
             </div>
@@ -66,6 +68,7 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  autoComplete="current-password"
                   required
                 />
                 <button

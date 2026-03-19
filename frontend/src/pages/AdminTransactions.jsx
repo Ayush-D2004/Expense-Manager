@@ -14,7 +14,8 @@ export default function AdminTransactions() {
       await adminApprove(txnId).unwrap()
       toast.success(`Transaction #${txnId} approved`)
     } catch (err) {
-      toast.error(err?.data?.detail || 'Approval failed')
+      const detail = err?.data?.detail
+      toast.error(Array.isArray(detail) ? detail[0].msg : (detail || 'Approval failed'))
     }
   }
 

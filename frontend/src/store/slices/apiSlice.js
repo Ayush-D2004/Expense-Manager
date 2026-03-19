@@ -1,45 +1,49 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: fetchBaseQuery({
-    baseUrl: BASE_URL,
+    baseUrl,
     prepareHeaders: (headers, { getState }) => {
       const token = getState().auth.token
-      if (token) {
-        headers.set('Authorization', `Bearer ${token}`)
-      }
+      if (token) headers.set('authorization', `Bearer ${token}`)
       return headers
     },
   }),
-  tagTypes: ['Wallet', 'Transaction', 'Employee'],
+  tagTypes: ['Wallet', 'Transaction', 'Report'],
   endpoints: (builder) => ({
-    // Auth
+    // ─── Auth ───────────────────────────────────────────────────────────────
     login: builder.mutation({
-      query: (credentials) => ({
-        url: '/api/auth/login',
-        method: 'POST',
-        body: new URLSearchParams({
-          username: credentials.email,
-          password: credentials.password,
-        }),
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      }),
+      query: (credentials) => {
+        const formData = new URLSearchParams()
+        formData.append('username', credentials.email)
+        formData.append('password', credentials.password)
+        return {
+          url: '/api/auth/login',
+          method: 'POST',
+          body: formData,
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        }
+      },
     }),
     register: builder.mutation({
-      query: (data) => ({ url: '/api/auth/register', method: 'POST', body: data }),
+      query: (data) => ({
+        url: '/api/auth/register',
+        method: 'POST',
+        body: data,
+      }),
     }),
 
-    // Wallet
+    // ─── Employee Wallet ────────────────────────────────────────────────────
     getBalance: builder.query({
       query: () => '/api/wallet/balance',
       providesTags: ['Wallet'],
     }),
     createSpend: builder.mutation({
       query: (data) => ({ url: '/api/wallet/spend', method: 'POST', body: data }),
-      invalidatesTags: ['Transaction'],
+      invalidatesTags: ['Transaction', 'Wallet'],
     }),
     uploadProof: builder.mutation({
       query: ({ txnId, formData }) => ({
@@ -47,28 +51,51 @@ export const apiSlice = createApi({
         method: 'POST',
         body: formData,
       }),
-      invalidatesTags: ['Transaction', 'Wallet'],
+      invalidatesTags: ['Transaction'],
     }),
-    initiatePayment: builder.mutation({
-      query: (txnId) => ({ url: `/api/wallet/pay/${txnId}`, method: 'POST' }),
+    setupPin: builder.mutation({
+      query: (data) => ({ url: '/api/wallet/setup-pin', method: 'POST', body: data }),
+      invalidatesTags: ['Wallet'],
     }),
-    confirmPayment: builder.mutation({
-      query: ({ txnId, razorpay_payment_id, razorpay_signature }) => ({
-        url: `/api/wallet/pay/${txnId}/confirm`,
+    requestPinChange: builder.mutation({
+      query: () => ({ url: '/api/wallet/request-pin-change', method: 'POST' }),
+      invalidatesTags: ['Wallet'],
+    }),
+    payWithPin: builder.mutation({
+      query: ({ txnId, upi_pin }) => ({
+        url: `/api/wallet/pay/${txnId}`,
         method: 'POST',
-        params: { razorpay_payment_id, razorpay_signature },
+        body: { upi_pin },
       }),
-      invalidatesTags: ['Wallet', 'Transaction'],
+      invalidatesTags: ['Transaction', 'Wallet'],
     }),
     getMyTransactions: builder.query({
       query: () => '/api/wallet/my-transactions',
       providesTags: ['Transaction'],
     }),
 
-    // Admin
+    // ─── Company ────────────────────────────────────────────────────────────
+    createEmployee: builder.mutation({
+      query: (data) => ({ url: '/api/company/employees', method: 'POST', body: data }),
+      invalidatesTags: ['Wallet', 'Report'], // Invalidating to refresh employee lists somewhere
+    }),
+    getEmployees: builder.query({
+      query: () => '/api/company/employees',
+      providesTags: ['Wallet'],
+    }),
+    changeEmployeeRole: builder.mutation({
+      query: ({ userId, role }) => ({
+        url: `/api/company/employees/${userId}/role`,
+        method: 'PUT',
+        body: { role },
+      }),
+      invalidatesTags: ['Wallet'],
+    }),
+
+    // ─── Admin ──────────────────────────────────────────────────────────────
     listEmployeeWallets: builder.query({
       query: () => '/api/admin/wallets',
-      providesTags: ['Employee', 'Wallet'],
+      providesTags: ['Wallet'],
     }),
     setEmployeeLimit: builder.mutation({
       query: ({ userId, limit }) => ({
@@ -76,21 +103,37 @@ export const apiSlice = createApi({
         method: 'POST',
         body: { limit },
       }),
-      invalidatesTags: ['Employee', 'Wallet'],
+      invalidatesTags: ['Wallet'],
     }),
     adminApprove: builder.mutation({
       query: (txnId) => ({ url: `/api/admin/approve/${txnId}`, method: 'POST' }),
+      invalidatesTags: ['Transaction', 'Wallet'],
+    }),
+    adminReject: builder.mutation({
+      query: (txnId) => ({ url: `/api/admin/reject/${txnId}`, method: 'POST' }),
       invalidatesTags: ['Transaction'],
     }),
+    approvePinChange: builder.mutation({
+      query: (userId) => ({ url: `/api/admin/approve-pin-change/${userId}`, method: 'POST' }),
+      invalidatesTags: ['Wallet'],
+    }),
     getAllTransactions: builder.query({
-      query: (status) => ({
-        url: '/api/admin/txns',
-        params: status ? { status } : {},
-      }),
+      query: (status) => status ? `/api/admin/txns?status=${status}` : '/api/admin/txns',
       providesTags: ['Transaction'],
     }),
     getReports: builder.query({
       query: () => '/api/admin/reports',
+      providesTags: ['Report'],
+    }),
+    initiateTopUp: builder.mutation({
+      query: (amount) => ({ url: '/api/admin/topup', method: 'POST', body: { limit: amount } }),
+    }),
+    confirmTopUp: builder.mutation({
+      query: (data) => ({
+        url: `/api/admin/topup/confirm?order_id=${data.order_id}&payment_id=${data.payment_id}&signature=${data.signature}&amount=${data.amount}`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['Wallet', 'Report'],
     }),
   }),
 })
@@ -101,12 +144,20 @@ export const {
   useGetBalanceQuery,
   useCreateSpendMutation,
   useUploadProofMutation,
-  useInitiatePaymentMutation,
-  useConfirmPaymentMutation,
+  useSetupPinMutation,
+  useRequestPinChangeMutation,
+  usePayWithPinMutation,
   useGetMyTransactionsQuery,
   useListEmployeeWalletsQuery,
   useSetEmployeeLimitMutation,
   useAdminApproveMutation,
+  useAdminRejectMutation,
+  useApprovePinChangeMutation,
   useGetAllTransactionsQuery,
   useGetReportsQuery,
+  useInitiateTopUpMutation,
+  useConfirmTopUpMutation,
+  useCreateEmployeeMutation,
+  useGetEmployeesQuery,
+  useChangeEmployeeRoleMutation,
 } = apiSlice

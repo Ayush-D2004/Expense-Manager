@@ -37,7 +37,8 @@ export default function UploadProof() {
       const txn = await uploadProof({ txnId, formData }).unwrap()
       setResult({ status: txn.status, proof: txn.proof })
     } catch (err) {
-      toast.error(err?.data?.detail || 'Upload failed')
+      const detail = err?.data?.detail
+      toast.error(Array.isArray(detail) ? detail[0].msg : (detail || 'Upload failed'))
     }
   }
 
@@ -50,7 +51,7 @@ export default function UploadProof() {
               <CheckCircle size={48} className="text-emerald-500 mx-auto mb-4" />
               <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Receipt Verified ✓</h2>
               <p className="text-sm text-[var(--text-muted)] mb-4">{result.proof?.ai_reason}</p>
-              <button onClick={() => navigate(`/pay/${txnId}`)} className="btn-success w-full justify-center py-2.5">
+              <button onClick={() => navigate(`/dashboard/pay/${txnId}`)} className="btn-success w-full justify-center py-2.5">
                 Proceed to Payment
               </button>
             </>
@@ -60,7 +61,7 @@ export default function UploadProof() {
               <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Flagged for Review</h2>
               <p className="text-sm text-[var(--text-muted)] mb-4">{result.proof?.ai_reason}</p>
               <p className="text-xs text-[var(--text-muted)] mb-4">An admin will review and approve your request manually.</p>
-              <button onClick={() => navigate('/')} className="btn-secondary w-full justify-center py-2.5">
+              <button onClick={() => navigate('/dashboard')} className="btn-secondary w-full justify-center py-2.5">
                 Back to Dashboard
               </button>
             </>

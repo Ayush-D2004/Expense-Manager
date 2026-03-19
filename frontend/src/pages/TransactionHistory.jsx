@@ -48,12 +48,12 @@ export default function TransactionHistory() {
                     {!isAdmin && (
                       <td className="px-5 py-3.5">
                         {txn.status === 'PENDING' && (
-                          <button onClick={() => navigate(`/proof/${txn.id}`)} className="btn-primary py-1 text-xs">
+                          <button onClick={() => navigate(`/dashboard/proof/${txn.id}`)} className="btn-primary py-1 text-xs">
                             Upload Proof
                           </button>
                         )}
                         {txn.status === 'APPROVED' && (
-                          <button onClick={() => navigate(`/pay/${txn.id}`)} className="btn-success py-1 text-xs">
+                          <button onClick={() => navigate(`/dashboard/pay/${txn.id}`)} className="btn-success py-1 text-xs">
                             Pay Now
                           </button>
                         )}
