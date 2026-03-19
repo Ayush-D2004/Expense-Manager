@@ -76,8 +76,7 @@ export default function LandingPage() {
             <span className="font-bold text-[var(--text-primary)] text-sm tracking-tight">ExpenseManager</span>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/login')} className="btn-secondary py-2 text-sm">Sign In</button>
-            <button onClick={() => navigate('/register')} className="btn-primary py-2 text-sm">Get Started</button>
+            <button className="btn-primary py-2 text-sm"><a href='https://github.com/Ayush-D2004'>GitHub</a></button>
           </div>
         </div>
       </nav>
@@ -108,10 +107,10 @@ export default function LandingPage() {
           </motion.p>
           <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-3 justify-center">
             <button onClick={() => navigate('/register')} className="btn-primary px-8 py-3 text-base gap-2">
-              Get Started Free <ArrowRight size={18} />
+              Register Company <ArrowRight size={18} />
             </button>
             <button onClick={() => navigate('/login')} className="btn-secondary px-8 py-3 text-base">
-              Sign In
+              Employee Sign In
             </button>
           </motion.div>
         </motion.div>
@@ -158,31 +157,92 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── How It Works ────────────────────────────────────────── */}
-      <section className="py-20 px-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-[var(--text-primary)] mb-3">How it works</h2>
-            <p className="text-[var(--text-muted)]">Three steps from expense to paid.</p>
+      {/* ─── Visual Architecture Diagram ─────────────────────────── */}
+      <section className="py-24 px-6 overflow-hidden relative">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-extrabold text-[var(--text-primary)] mb-4">How it works</h2>
+            <p className="text-lg text-[var(--text-muted)] max-w-2xl mx-auto">
+              A unified central wallet powers your entire team. Admins control the funds, and employees spend securely with their own UPI PINs after AI verification.
+            </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
-            {steps.map(({ n, title, desc }, i) => (
-              <motion.div
-                key={n}
-                initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="relative text-center"
-              >
-                <div className="text-6xl font-black text-[var(--border)] mb-4">{n}</div>
-                <h3 className="font-semibold text-[var(--text-primary)] mb-2">{title}</h3>
-                <p className="text-sm text-[var(--text-muted)]">{desc}</p>
-                {i < steps.length - 1 && (
-                  <div className="hidden sm:block absolute top-8 right-0 translate-x-1/2 text-[var(--border)]">
-                    <ArrowRight size={20} />
+
+          <div className="relative p-6 sm:p-10 bg-slate-900 dark:bg-black border border-slate-800 rounded-3xl shadow-2xl overflow-hidden">
+            {/* Background Glows */}
+            <div className="absolute top-0 right-1/4 w-96 h-96 bg-brand-500/20 blur-[100px] pointer-events-none rounded-full" />
+            <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-emerald-500/10 blur-[100px] pointer-events-none rounded-full" />
+
+            {/* Top Row: Admin Portal */}
+            <div className="relative flex flex-col items-center mb-8 z-10">
+              <div className="bg-slate-800/80 backdrop-blur border border-slate-700 p-5 rounded-2xl w-full max-w-sm text-center shadow-xl">
+                <div className="w-12 h-12 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <ShieldCheck size={24} className="text-indigo-400" />
+                </div>
+                <h3 className="text-white font-bold text-lg">Company Dashboard</h3>
+                <p className="text-slate-400 text-sm mt-1">Admin funds wallet via Razorpay &amp; sets limits</p>
+              </div>
+              
+              {/* Down Arrow */}
+              <div className="h-10 w-px bg-gradient-to-b from-indigo-500/50 to-brand-500 my-2 shadow-[0_0_15px_rgba(79,70,229,0.5)]"></div>
+              <ArrowRight size={20} className="text-brand-400 rotate-90 -mt-3 relative z-10" />
+            </div>
+
+            {/* Middle: Central Wallet */}
+            <div className="relative flex flex-col items-center mb-10 z-10">
+              <div className="bg-gradient-to-br from-brand-600 to-indigo-600 p-[2px] rounded-3xl w-full max-w-md shadow-2xl shadow-brand-500/20 ring-4 ring-brand-500/10">
+                <div className="bg-slate-900 rounded-[22px] p-6 text-center h-full">
+                  <div className="w-14 h-14 bg-brand-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-brand-500/30">
+                    <Wallet size={28} className="text-brand-400" />
                   </div>
-                )}
-              </motion.div>
-            ))}
+                  <h2 className="text-2xl font-black text-white tracking-tight">Digital Expense Wallet</h2>
+                  <p className="text-brand-200 mt-2 text-sm font-medium">Shared Company Pool</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Branching paths to Employee */}
+            <div className="relative z-10">
+              {/* Connector lines (Desktop) */}
+              <div className="hidden sm:block absolute top-0 left-1/2 w-3/4 max-w-md h-px bg-gradient-to-r from-transparent via-brand-500/50 to-transparent -translate-x-1/2"></div>
+              <div className="hidden sm:block absolute top-0 left-1/4 h-6 w-px bg-gradient-to-b from-brand-500/50 to-transparent"></div>
+              <div className="hidden sm:block absolute top-0 right-1/4 h-6 w-px bg-gradient-to-b from-brand-500/50 to-transparent"></div>
+              <div className="hidden sm:block absolute top-0 left-1/2 h-6 w-px bg-gradient-to-b from-brand-500/50 to-transparent"></div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 sm:pt-6">
+                
+                {/* Step 1 */}
+                <div className="bg-slate-800/50 border border-slate-700/50 p-5 rounded-2xl text-center relative hover:bg-slate-800 transition-colors">
+                  <div className="absolute -top-3 -left-3 w-8 h-8 bg-slate-700 text-white text-sm font-bold flex items-center justify-center rounded-full border border-slate-600 shadow-lg">1</div>
+                  <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center mx-auto mb-3">
+                    <BarChart3 size={20} className="text-emerald-400" />
+                  </div>
+                  <h4 className="text-slate-200 font-semibold mb-1">Submit Request</h4>
+                  <p className="text-slate-400 text-xs">Employee logs expense amount and category.</p>
+                </div>
+
+                {/* Step 2 */}
+                <div className="bg-slate-800/50 border border-slate-700/50 p-5 rounded-2xl text-center relative hover:bg-slate-800 transition-colors">
+                  <div className="absolute -top-3 -left-3 w-8 h-8 bg-slate-700 text-white text-sm font-bold flex items-center justify-center rounded-full border border-slate-600 shadow-lg">2</div>
+                  <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center mx-auto mb-3">
+                    <Brain size={20} className="text-amber-400" />
+                  </div>
+                  <h4 className="text-slate-200 font-semibold mb-1">AI Verification</h4>
+                  <p className="text-slate-400 text-xs">Gemini verifies the receipt photo matches the spend.</p>
+                </div>
+
+                {/* Step 3 */}
+                <div className="bg-brand-900/30 border border-brand-500/30 p-5 rounded-2xl text-center relative shadow-[0_0_20px_rgba(79,70,229,0.1)]">
+                  <div className="absolute -top-3 -left-3 w-8 h-8 bg-brand-600 text-white text-sm font-bold flex items-center justify-center rounded-full shadow-lg shadow-brand-500/40">3</div>
+                  <div className="w-10 h-10 bg-brand-500/20 rounded-xl flex items-center justify-center mx-auto mb-3">
+                    <Zap size={20} className="text-brand-400" />
+                  </div>
+                  <h4 className="text-white font-semibold mb-1">Pay via UPI</h4>
+                  <p className="text-brand-200/70 text-xs">Employee enters PIN, payment pulls from Central Wallet.</p>
+                </div>
+
+              </div>
+            </div>
+            
           </div>
         </div>
       </section>
@@ -196,7 +256,7 @@ export default function LandingPage() {
           <h2 className="text-3xl font-bold text-[var(--text-primary)] mb-4">Ready to modernise your expense workflow?</h2>
           <p className="text-[var(--text-muted)] mb-8">Create your company account and onboard your team in minutes.</p>
           <button onClick={() => navigate('/register')} className="btn-primary px-10 py-3.5 text-base gap-2">
-            Get Started Free <ArrowRight size={18} />
+            Register Company <ArrowRight size={18} />
           </button>
         </motion.div>
       </section>
@@ -204,7 +264,7 @@ export default function LandingPage() {
       {/* ─── Footer ──────────────────────────────────────────────── */}
       <footer className="py-8 px-6 border-t border-[var(--border)] text-center">
         <p className="text-sm text-[var(--text-muted)]">
-          © 2025 ExpenseManager · Built for SMBs · AI by Gemini · Payments by Razorpay
+          Project by <a href='https://www.linkedin.com/in/ayush-dhoble-7363b2290/'>Ayush Dhoble</a> | <a href='https://github.com/Ayush-D2004'>Github</a>
         </p>
       </footer>
     </div>
