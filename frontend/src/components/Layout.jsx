@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { toggleTheme } from '../store/slices/themeSlice'
 import { logout } from '../store/slices/authSlice'
-import { useGetBalanceQuery, useGetReportsQuery } from '../store/slices/apiSlice'
+import { useGetBalanceQuery, useGetReportsQuery, useGetHealthQuery } from '../store/slices/apiSlice'
 import useRealtimeSync from '../hooks/useRealtimeSync'
 import { motion } from 'framer-motion'
 import {
@@ -51,6 +51,9 @@ export default function Layout() {
     : wallet ? wallet.limit - wallet.spent_amount : 0
 
   const balanceLabel = isManager ? 'Company Wallet' : 'Available'
+
+  // Server health ping for Render cold starts
+  const { isLoading: wakingServer, isSuccess: serverReady, isError: serverError } = useGetHealthQuery(undefined, { pollingInterval: 30000 })
 
   return (
     <div className="flex h-screen bg-[var(--bg-primary)] overflow-hidden">
@@ -103,6 +106,23 @@ export default function Layout() {
         <header className="h-16 border-b border-[var(--border)] flex items-center justify-between px-6 bg-[var(--bg-primary)] shrink-0">
           <div />
           <div className="flex items-center gap-4">
+            {/* Connection Status Badge */}
+            <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${
+              serverReady 
+                ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' 
+                : serverError
+                ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20'
+                : 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'
+            }`}>
+              {serverReady ? (
+                <><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_theme(colors.emerald.500)]" /> Backend Connected</>
+              ) : serverError ? (
+                <><span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Backend Disconnected</>
+              ) : (
+                <><span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Waking Server (~1m)</>
+              )}
+            </div>
+
             {/* Balance chip */}
             <div className="flex items-center gap-2 text-sm bg-[var(--bg-secondary)] px-3 py-1.5 rounded-lg border border-[var(--border)]">
               <Wallet size={14} className="text-brand-600" />

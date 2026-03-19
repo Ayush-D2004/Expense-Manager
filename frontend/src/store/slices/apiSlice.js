@@ -36,7 +36,10 @@ export const apiSlice = createApi({
       }),
     }),
 
-    // ─── Employee Wallet ────────────────────────────────────────────────────
+    // ─── Health / Auth / Employee Wallet ────────────────────────────────────
+    getHealth: builder.query({
+      query: () => '/api/health',
+    }),
     getBalance: builder.query({
       query: () => '/api/wallet/balance',
       providesTags: ['Wallet'],
@@ -141,6 +144,7 @@ export const apiSlice = createApi({
 export const {
   useLoginMutation,
   useRegisterMutation,
+  useGetHealthQuery,
   useGetBalanceQuery,
   useCreateSpendMutation,
   useUploadProofMutation,

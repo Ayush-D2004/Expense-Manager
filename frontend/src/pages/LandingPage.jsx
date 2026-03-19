@@ -3,6 +3,7 @@ import { useNavigate, Navigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { motion } from 'framer-motion'
 import { Brain, Wallet, BarChart3, ShieldCheck, ArrowRight, Zap } from 'lucide-react'
+import { useGetHealthQuery } from '../store/slices/apiSlice'
 
 const features = [
   {
@@ -61,6 +62,7 @@ const itemVariants = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, 
 export default function LandingPage() {
   const navigate = useNavigate()
   const { token } = useSelector((s) => s.auth)
+  const { isSuccess: serverReady, isError: serverError } = useGetHealthQuery(undefined, { pollingInterval: 30000 })
 
   if (token) return <Navigate to="/dashboard" replace />
 
@@ -75,7 +77,24 @@ export default function LandingPage() {
             </div>
             <span className="font-bold text-[var(--text-primary)] text-sm tracking-tight">ExpenseManager</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
+            {/* Connection Status Badge */}
+            <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${
+              serverReady 
+                ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' 
+                : serverError
+                ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20'
+                : 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'
+            }`}>
+              {serverReady ? (
+                <><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_theme(colors.emerald.500)]" /> Backend Connected</>
+              ) : serverError ? (
+                <><span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Backend OffDisline</>
+              ) : (
+                <><span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Waking Server (~1m)</>
+              )}
+            </div>
+
             <button className="btn-primary py-2 text-sm"><a href='https://github.com/Ayush-D2004'>GitHub</a></button>
           </div>
         </div>
