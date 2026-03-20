@@ -31,7 +31,8 @@ Employees can log expenses, upload receipts for **Gemini AI Verification**, and 
 ### Backend
 *   **FastAPI** (High-performance async Python framework)
 *   **SQLAlchemy & Alembic** (ORM & Migrations)
-*   **JWT & Passlib** (Authentication & bcrypt password/PIN hashing)
+*   **JWT & Pass    lib** (Authentication & bcrypt password/PIN hashing)
+*   **Razorpay** (Payment Gateway) 
 
 ### Database
 *   **PostgreSQL** (Relational Database)
@@ -43,46 +44,6 @@ Employees can log expenses, upload receipts for **Gemini AI Verification**, and 
 - **CORS Handling**: Backend is configured to only allow origins specified in the `FRONTEND_URL` environment variable.
 - **Sleep Optimization**: Contains an automated `/api/health` polling Ping to seamlessly wake Serverless Cloud architectures (like Render free tiers).
 - **Rate Limiting**: Integrated `slowapi` to prevent brute force attacks on the auth and UPI PIN verification endpoints. 
-
----
-
-## 🏗️ High-Level System Architecture
-
-The following details the control loop from an employee submitting an expense to the final payment deduction.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    
-    participant Emp as Employee
-    participant BE as FastAPI Backend
-    participant AI as Gemini AI
-    participant DB as PostgreSQL
-    participant WS as WebSocket
-
-    Emp->>BE: Submits Spend Request (Amount, Desc)
-    BE->>DB: Save Txn (Status: PENDING)
-    
-    Emp->>BE: Uploads Receipt Proof (Image)
-    BE->>AI: Send Image + Amount Context
-    Note right of AI: AI checks if business expense<br/>Matches claimed amount
-    AI-->>BE: JSON {legit: bool, reason: str}
-    
-    alt is legit == true
-        BE->>DB: Update Txn Status -> APPROVED
-    else is legit == false OR flagged
-        BE->>DB: Update Txn Status -> FLAGGED
-    end
-
-    BE->>WS: Broadcast TXN_UPDATED to Company Dashboards
-    
-    Emp->>BE: Authorize Payment via UPI PIN
-    BE->>DB: Verify bcrypt(PIN)
-    BE->>DB: Deduct Amount from Company Central Wallet
-    BE->>WS: Broadcast WALLET_UPDATED (Real-time sync)
-```
-
- *(For Razorpay funding and Admin specific overrides, check the internal documentation)*
 
 ---
 

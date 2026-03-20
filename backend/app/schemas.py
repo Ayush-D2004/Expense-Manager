@@ -77,10 +77,14 @@ class SetPinRequest(BaseModel):
 class PayWithPinRequest(BaseModel):
     upi_pin: str
 
+class DobRequest(BaseModel):
+    dob_string: str
+
 class SpendRequest(BaseModel):
     amount: float
     description: str
     category: Optional[str] = None
+    merchant_upi: Optional[str] = None
 
 class TransactionResponse(BaseModel):
     id: int
@@ -91,6 +95,7 @@ class TransactionResponse(BaseModel):
     category: Optional[str]
     status: TransactionStatus
     is_over_limit_request: bool = False
+    merchant_upi: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

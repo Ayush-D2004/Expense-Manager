@@ -198,6 +198,7 @@ def get_reports(
     }
 
 
+
 @router.post("/topup")
 def initiate_topup(
     payload: schemas.SetLimitRequest,
@@ -226,6 +227,27 @@ async def confirm_topup(
     is_valid = verify_razorpay_payment(order_id, payment_id, signature)
     if not is_valid:
         raise HTTPException(status_code=400, detail="Payment verification failed")
+
+    wallet = get_company_wallet(db, current_user.company_id)
+    if not wallet:
+        raise HTTPException(status_code=404, detail="Company wallet not found")
+
+    wallet.balance += amount
+    db.commit()
+    await manager.broadcast_event("WALLET_UPDATED", {"user_id": wallet.user_id, "balance": wallet.balance})
+    return {"message": f"₹{amount:.2f} added to company wallet", "new_balance": wallet.balance}
+
+
+@router.post("/topup/direct")
+async def direct_topup(
+    payload: schemas.SetLimitRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_admin),
+):
+    """Demo-only: directly add funds to company wallet without Razorpay."""
+    amount = payload.limit
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be positive")
 
     wallet = get_company_wallet(db, current_user.company_id)
     if not wallet:

@@ -56,12 +56,23 @@ export const apiSlice = createApi({
       }),
       invalidatesTags: ['Transaction'],
     }),
+    skipProof: builder.mutation({
+      query: (txnId) => ({
+        url: `/api/wallet/skip-proof/${txnId}`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['Transaction'],
+    }),
     setupPin: builder.mutation({
       query: (data) => ({ url: '/api/wallet/setup-pin', method: 'POST', body: data }),
       invalidatesTags: ['Wallet'],
     }),
     requestPinChange: builder.mutation({
       query: () => ({ url: '/api/wallet/request-pin-change', method: 'POST' }),
+      invalidatesTags: ['Wallet'],
+    }),
+    setDob: builder.mutation({
+      query: (data) => ({ url: '/api/wallet/set-dob', method: 'POST', body: data }),
       invalidatesTags: ['Wallet'],
     }),
     payWithPin: builder.mutation({
@@ -131,6 +142,10 @@ export const apiSlice = createApi({
     initiateTopUp: builder.mutation({
       query: (amount) => ({ url: '/api/admin/topup', method: 'POST', body: { limit: amount } }),
     }),
+    directTopUp: builder.mutation({
+      query: (amount) => ({ url: '/api/admin/topup/direct', method: 'POST', body: { limit: amount } }),
+      invalidatesTags: ['Wallet', 'Report'],
+    }),
     confirmTopUp: builder.mutation({
       query: (data) => ({
         url: `/api/admin/topup/confirm?order_id=${data.order_id}&payment_id=${data.payment_id}&signature=${data.signature}&amount=${data.amount}`,
@@ -164,4 +179,7 @@ export const {
   useCreateEmployeeMutation,
   useGetEmployeesQuery,
   useChangeEmployeeRoleMutation,
+  useSkipProofMutation,
+  useDirectTopUpMutation,
+  useSetDobMutation,
 } = apiSlice

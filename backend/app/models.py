@@ -82,6 +82,7 @@ class Transaction(Base):
     category = Column(String(100), nullable=True)
     status = Column(Enum(TransactionStatus), default=TransactionStatus.PENDING, nullable=False)
     is_over_limit_request = Column(Boolean, default=False)
+    merchant_upi = Column(String(255), nullable=True)
     razorpay_order_id = Column(String(255), nullable=True)
     razorpay_payment_id = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

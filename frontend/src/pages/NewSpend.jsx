@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCreateSpendMutation, useGetBalanceQuery } from '../store/slices/apiSlice'
 import toast from 'react-hot-toast'
-import { ArrowLeft, IndianRupee, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, IndianRupee, AlertTriangle, QrCode, CheckCircle2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import QRScanner from '../components/QRScanner'
 
 const CATEGORIES = ['Office Supplies', 'Travel', 'Meals', 'Equipment', 'Software', 'Other']
 
@@ -11,8 +12,9 @@ export default function NewSpend() {
   const navigate = useNavigate()
   const [createSpend, { isLoading }] = useCreateSpendMutation()
   const { data: wallet } = useGetBalanceQuery()
-  const [form, setForm] = useState({ amount: '', description: '', category: '' })
+  const [form, setForm] = useState({ amount: '', description: '', category: '', merchant_upi: '' })
   const [showOverLimitWarning, setShowOverLimitWarning] = useState(false)
+  const [showScanner, setShowScanner] = useState(false)
 
   const available = wallet ? wallet.limit - wallet.spent_amount : Infinity
   const isAdmin = !wallet?.limit  // admin has no limit model
@@ -30,6 +32,7 @@ export default function NewSpend() {
         amount: parseFloat(form.amount),
         description: form.description,
         category: form.category || null,
+        merchant_upi: form.merchant_upi || null,
       }).unwrap()
       toast.success(isOverLimit ? 'Over-limit request sent to admin!' : 'Spend request created!')
       navigate(isOverLimit ? '/dashboard' : `/dashboard/proof/${txn.id}`)
@@ -39,13 +42,53 @@ export default function NewSpend() {
     }
   }
 
+  const handleQRScan = (data) => {
+    setForm(prev => ({
+      ...prev,
+      amount: data.amount > 0 ? String(data.amount) : prev.amount,
+      description: data.name || prev.description,
+      merchant_upi: data.vpa || '',
+    }))
+    setShowQR(false)
+    toast.success('QR scanned! Details auto-filled.')
+  }
+
   return (
     <div className="max-w-lg">
       <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] mb-6 transition-colors">
         <ArrowLeft size={16} /> Back
       </button>
       <h1 className="page-title mb-1">New Expense</h1>
-      <p className="text-sm text-[var(--text-muted)] mb-6">Submit a spend request. You'll need to upload a receipt next.</p>
+      <p className="text-sm text-[var(--text-muted)] mb-4">Submit a spend request. You'll need to upload a receipt next.</p>
+
+      {form.merchant_upi && (
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="mb-6 p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 flex items-start gap-3 shadow-sm shadow-emerald-500/10">
+          <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-800 flex items-center justify-center shrink-0">
+            <CheckCircle2 size={18} className="text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-emerald-900 dark:text-emerald-300">QR Scanned & Auto-filled!</p>
+            <p className="text-xs text-emerald-700 dark:text-emerald-400/80 mt-0.5">Details for <span className="font-semibold">{form.description || 'the merchant'}</span> captured. Check the fields below.</p>
+          </div>
+          <button onClick={() => setForm(p => ({ ...p, merchant_upi: '', amount: '', description: '' }))} className="text-xs font-semibold text-emerald-600 dark:text-emerald-500 hover:text-emerald-700 underline underline-offset-2">Reset</button>
+        </motion.div>
+      )}
+
+      {/* QR Scan Button */}
+      <button
+        onClick={() => setShowQR(true)}
+        className="w-full card p-4 mb-4 flex items-center gap-3 hover:bg-[var(--bg-secondary)] transition-colors text-left border-2 border-dashed border-brand-300 dark:border-brand-700"
+      >
+        <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center shrink-0">
+          <QrCode size={18} className="text-white" />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-[var(--text-primary)]">Scan UPI QR Code</p>
+          <p className="text-xs text-[var(--text-muted)]">Auto-fill merchant details from a UPI QR</p>
+        </div>
+      </button>
+
+      <AnimatePresence>{showScanner && <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />}</AnimatePresence>
 
       {wallet && !isAdmin && (
         <div className="card p-4 mb-4 flex items-center gap-3 text-sm">
@@ -108,6 +151,14 @@ export default function NewSpend() {
               <option value="">Select category</option>
               {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
+          </div>
+
+          {/* Merchant UPI (auto-filled or manual) */}
+          <div>
+            <label className="label" htmlFor="merchant_upi">Merchant UPI ID</label>
+            <input id="merchant_upi" type="text" className="input font-mono text-sm" placeholder="merchant@upi"
+              value={form.merchant_upi} onChange={(e) => setForm({ ...form, merchant_upi: e.target.value })} />
+            <p className="text-xs text-[var(--text-muted)] mt-1">Auto-filled from QR scan or enter manually.</p>
           </div>
 
           <button id="submit-spend-btn" type="submit" disabled={isLoading}

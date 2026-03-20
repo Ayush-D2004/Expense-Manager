@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
-import { usePayWithPinMutation, useGetBalanceQuery } from '../store/slices/apiSlice'
+import { usePayWithPinMutation, useGetBalanceQuery, useGetMyTransactionsQuery } from '../store/slices/apiSlice'
 import { useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { ShieldCheck, ArrowLeft, CheckCircle, Lock } from 'lucide-react'
@@ -48,6 +48,8 @@ export default function PaymentPage() {
   const [payWithPin, { isLoading }] = usePayWithPinMutation()
   const [pin, setPin] = useState('')
   const [paid, setPaid] = useState(false)
+  const { data: txns = [] } = useGetMyTransactionsQuery()
+  const currentTxn = txns.find(t => String(t.id) === String(txnId))
 
   // If employee hasn't set a PIN yet, redirect to setup
   if (wallet && !wallet.has_pin) {
@@ -98,6 +100,12 @@ export default function PaymentPage() {
           </div>
           <h1 className="text-xl font-bold text-[var(--text-primary)]">Enter UPI PIN</h1>
           <p className="text-sm text-[var(--text-muted)] mt-1">Transaction #{txnId} · Deducted from company wallet</p>
+          {currentTxn?.merchant_upi && (
+            <div className="mt-3 px-3 py-2 rounded-lg bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800">
+              <p className="text-xs text-[var(--text-muted)]">Paying to</p>
+              <p className="text-sm font-mono font-medium text-brand-600 dark:text-brand-400">{currentTxn.merchant_upi}</p>
+            </div>
+          )}
         </div>
 
         <PinPad value={pin} onChange={setPin} />

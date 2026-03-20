@@ -1,9 +1,9 @@
-import { useGetReportsQuery } from '../store/slices/apiSlice'
+import { useGetReportsQuery, useGetAllTransactionsQuery } from '../store/slices/apiSlice'
 import {
   PieChart, Pie, Cell, LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, Download } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 const COLORS = ['#4f46e5', '#10b981', '#f43f5e', '#f59e0b', '#6366f1', '#8b5cf6', '#06b6d4']
@@ -31,6 +31,30 @@ const tooltipStyle = {
 
 export default function AdminReports() {
   const { data, isLoading } = useGetReportsQuery()
+  const { data: allTxns = [] } = useGetAllTransactionsQuery()
+
+  const handleExportCSV = () => {
+    const paid = allTxns.filter(t => t.status === 'PAID')
+    if (paid.length === 0) return
+    const headers = ['ID', 'Description', 'Category', 'Amount', 'Merchant UPI', 'Status', 'Date']
+    const rows = paid.map(t => [
+      t.id,
+      `"${t.description}"`,
+      t.category || 'Uncategorized',
+      t.amount.toFixed(2),
+      t.merchant_upi || '',
+      t.status,
+      new Date(t.created_at).toLocaleDateString(),
+    ])
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `expense_report_${new Date().toISOString().slice(0,10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   if (isLoading) return <div className="p-8 text-center text-[var(--text-muted)]">Loading analytics...</div>
 
@@ -41,11 +65,20 @@ export default function AdminReports() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center">
-          <BarChart3 size={17} className="text-white" />
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center">
+            <BarChart3 size={17} className="text-white" />
+          </div>
+          <h1 className="page-title">Reports & Analytics</h1>
         </div>
-        <h1 className="page-title">Reports & Analytics</h1>
+        <button
+          onClick={handleExportCSV}
+          disabled={allTxns.filter(t => t.status === 'PAID').length === 0}
+          className="btn-secondary py-2 text-sm flex items-center gap-1.5"
+        >
+          <Download size={14} /> Export CSV
+        </button>
       </div>
 
       {/* Summary strip */}

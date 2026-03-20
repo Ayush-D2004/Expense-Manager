@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useUploadProofMutation } from '../store/slices/apiSlice'
+import { useUploadProofMutation, useSkipProofMutation } from '../store/slices/apiSlice'
 import toast from 'react-hot-toast'
 import { Upload, FileImage, ArrowLeft, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -9,6 +9,7 @@ export default function UploadProof() {
   const { txnId } = useParams()
   const navigate = useNavigate()
   const [uploadProof, { isLoading }] = useUploadProofMutation()
+  const [skipProof, { isLoading: isSkipping }] = useSkipProofMutation()
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
   const [result, setResult] = useState(null)
@@ -120,6 +121,22 @@ export default function UploadProof() {
               Verifying with AI...
             </span>
           ) : 'Verify with AI →'}
+        </button>
+
+        <button
+          onClick={async () => {
+            try {
+              await skipProof(txnId).unwrap()
+              setResult({ status: 'APPROVED', proof: { ai_reason: 'Demo: Verification skipped.' } })
+            } catch (err) {
+              const detail = err?.data?.detail
+              toast.error(Array.isArray(detail) ? detail[0].msg : (detail || 'Skip failed'))
+            }
+          }}
+          disabled={isSkipping}
+          className="w-full justify-center py-2 text-xs rounded-lg border border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors flex items-center gap-2"
+        >
+          {isSkipping ? 'Skipping...' : '⚡ Skip AI Verification (Demo Only)'}
         </button>
       </div>
     </div>

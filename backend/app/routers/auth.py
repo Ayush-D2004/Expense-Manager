@@ -32,7 +32,7 @@ def register_company(company_data: schemas.CompanyCreate, db: Session = Depends(
     wallet = models.Wallet(
         company_id=company.id,
         user_id=user.id,
-        balance=0.0,
+        balance=50000.0,
         spent_amount=0.0,
         limit=0.0,
     )

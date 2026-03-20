@@ -6,7 +6,7 @@ import {
   useListEmployeeWalletsQuery, useAdminApproveMutation, useAdminRejectMutation,
 } from '../store/slices/apiSlice'
 import StatusBadge from '../components/StatusBadge'
-import { Wallet, TrendingUp, Clock, PlusCircle, Users, CheckCheck, X } from 'lucide-react'
+import { Wallet, TrendingUp, Clock, PlusCircle, Users, CheckCheck, X, RefreshCw } from 'lucide-react'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 
@@ -31,10 +31,16 @@ function StatCard({ label, value, icon: Icon, color, delay }) {
 
 function AdminDashboard() {
   const navigate = useNavigate()
-  const { data: reportsData } = useGetReportsQuery()
-  const { data: allTxns = [] } = useGetAllTransactionsQuery()
+  const { data: reportsData, refetch: refetchReports, isError: reportsError } = useGetReportsQuery()
+  const { data: allTxns = [], refetch: refetchTxns, isError: txnsError } = useGetAllTransactionsQuery()
   const [adminApprove] = useAdminApproveMutation()
   const [adminReject] = useAdminRejectMutation()
+
+  const handleRefresh = () => {
+    refetchReports()
+    refetchTxns()
+    toast.success('Refreshing dashboard...')
+  }
 
   const summary = reportsData?.summary || {}
   const pending = allTxns.filter((t) => t.status === 'PENDING' || t.status === 'FLAGGED').slice(0, 5)
@@ -47,9 +53,14 @@ function AdminDashboard() {
           <h1 className="page-title">Admin Dashboard</h1>
           <p className="text-[var(--text-muted)] text-sm mt-0.5">Company expense overview</p>
         </div>
-        <button onClick={() => navigate('/admin/topup')} className="btn-primary">
-          <PlusCircle size={15} /> Load Wallet
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={handleRefresh} className="btn-secondary p-2.5" title="Refresh Data">
+            <RefreshCw size={15} />
+          </button>
+          <button onClick={() => navigate('admin/topup')} className="btn-primary">
+            <PlusCircle size={15} /> Load Wallet
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

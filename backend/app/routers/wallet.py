@@ -26,6 +26,31 @@ def get_balance(
     return wallet
 
 
+@router.post("/set-dob")
+def set_dob(
+    payload: schemas.DobRequest,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Allow user to set DOB if not already set. Also auto-sets UPI PIN to DOB."""
+    if current_user.dob_string:
+        raise HTTPException(status_code=400, detail="Date of birth is already set.")
+    if not payload.dob_string or len(payload.dob_string) != 6 or not payload.dob_string.isdigit():
+        raise HTTPException(status_code=400, detail="DOB must be exactly 6 digits (DDMMYY).")
+
+    current_user.dob_string = payload.dob_string
+    db.commit()
+
+    # Auto-set UPI PIN to DOB if PIN not already set
+    wallet = db.query(models.Wallet).filter(models.Wallet.user_id == current_user.id).first()
+    if wallet and not wallet.upi_pin_hash:
+        wallet.upi_pin_hash = pin_context.hash(payload.dob_string)
+        wallet.pin_change_requested = False
+        db.commit()
+
+    return {"message": "Date of birth saved and default UPI PIN set to your DOB."}
+
+
 @router.post("/setup-pin")
 def setup_upi_pin(
     payload: schemas.SetPinRequest,
@@ -91,6 +116,7 @@ async def create_spend(
         amount=payload.amount,
         description=payload.description,
         category=payload.category,
+        merchant_upi=payload.merchant_upi,
         status=models.TransactionStatus.PENDING,
         is_over_limit_request=is_over_limit,
     )
@@ -151,6 +177,34 @@ async def upload_proof(
     else:
         txn.status = models.TransactionStatus.FLAGGED
 
+    db.commit()
+    db.refresh(txn)
+    await manager.broadcast_event("TXN_UPDATED", {"txn_id": txn_id, "status": txn.status.value})
+    return txn
+
+
+@router.post("/skip-proof/{txn_id}", response_model=schemas.TransactionResponse)
+async def skip_proof(
+    txn_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Demo-only: skip AI verification and force-approve a transaction."""
+    txn = (
+        db.query(models.Transaction)
+        .join(models.Wallet)
+        .filter(
+            models.Transaction.id == txn_id,
+            models.Wallet.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    if txn.status != models.TransactionStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Transaction is not pending")
+
+    txn.status = models.TransactionStatus.APPROVED
     db.commit()
     db.refresh(txn)
     await manager.broadcast_event("TXN_UPDATED", {"txn_id": txn_id, "status": txn.status.value})

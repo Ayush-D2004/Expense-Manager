@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useInitiateTopUpMutation, useConfirmTopUpMutation, useGetBalanceQuery, useGetReportsQuery } from '../store/slices/apiSlice'
+import { useInitiateTopUpMutation, useConfirmTopUpMutation, useGetBalanceQuery, useGetReportsQuery, useDirectTopUpMutation } from '../store/slices/apiSlice'
 import { useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
 import { ArrowRight, ArrowLeft, CheckCircle, Wallet, Building2, ShieldCheck } from 'lucide-react'
@@ -18,6 +18,7 @@ export default function AdminTopUp() {
   const [confirm] = useConfirmTopUpMutation()
   const [amount, setAmount] = useState('')
   const [success, setSuccess] = useState(null)
+  const [directTopUp, { isLoading: directLoading }] = useDirectTopUpMutation()
 
   // Dummy Bank Account state for dynamic UI
   const [bankBalance, setBankBalance] = useState(5000000)
@@ -179,6 +180,26 @@ export default function AdminTopUp() {
               <button id="topup-btn" onClick={handleTopUp} disabled={initiating || (amount && parseFloat(amount) > bankBalance)}
                 className="btn-primary w-full justify-center py-3 text-[15px] font-semibold mt-2 shadow-md shadow-brand-500/20 active:translate-y-0.5 transition-all">
                 {initiating ? 'Authenticating...' : 'Authorize Transfer'}
+              </button>
+
+              <button
+                onClick={async () => {
+                  const amt = parseFloat(amount)
+                  if (!amt || amt < 1) return toast.error('Enter a valid amount')
+                  try {
+                    const result = await directTopUp(amt).unwrap()
+                    setBankBalance(prev => prev - amt)
+                    setSuccess(result.new_balance)
+                    toast.success(`₹${amt.toFixed(2)} added directly!`)
+                  } catch (err) {
+                    const detail = err?.data?.detail
+                    toast.error(Array.isArray(detail) ? detail[0].msg : (detail || 'Failed'))
+                  }
+                }}
+                disabled={directLoading}
+                className="w-full justify-center py-2 text-xs rounded-lg border border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors flex items-center gap-2"
+              >
+                {directLoading ? 'Adding...' : '⚡ Quick Add (Demo — Skip Razorpay)'}
               </button>
               <p className="text-[10px] text-center text-[var(--text-muted)] mt-3 flex items-center justify-center gap-1">
                 Secured by Razorpay Setup

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useSetupPinMutation, useRequestPinChangeMutation, useGetBalanceQuery } from '../store/slices/apiSlice'
+import { useSetupPinMutation, useRequestPinChangeMutation, useGetBalanceQuery, useSetDobMutation } from '../store/slices/apiSlice'
+import { useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
 import { Lock, RefreshCw, ArrowLeft, CheckCircle, Clock } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -43,14 +44,18 @@ export default function SetupPin() {
   const navigate = useNavigate()
   const [setupPin, { isLoading: setting }] = useSetupPinMutation()
   const [requestPinChange, { isLoading: requesting }] = useRequestPinChangeMutation()
-  const { data: wallet } = useGetBalanceQuery()
+  const { data: wallet, refetch: refetchWallet } = useGetBalanceQuery()
+  const { user } = useSelector((s) => s.auth)
   const [pin, setPin] = useState('')
   const [confirm, setConfirm] = useState('')
   const [step, setStep] = useState('enter') // 'enter' | 'confirm'
   const [done, setDone] = useState(false)
+  const [dob, setDob] = useState('')
+  const [setDobMutation, { isLoading: settingDob }] = useSetDobMutation()
 
   const hasPin = wallet?.has_pin
   const pinChangeRequested = wallet?.pin_change_requested
+  const needsDob = !user?.dob_string && !hasPin
 
   const handleNext = () => {
     if (pin.length < 4) return toast.error('PIN must be at least 4 digits')
@@ -110,6 +115,51 @@ export default function SetupPin() {
         <button onClick={handleRequestChange} disabled={requesting} className="btn-primary w-full justify-center py-2.5">
           {requesting ? 'Sending...' : 'Request PIN Change from Admin'}
         </button>
+      </div>
+    </div>
+  )
+
+  // If user has no DOB (company/admin), prompt for it first
+  if (needsDob) return (
+    <div className="max-w-sm mx-auto">
+      <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] mb-6 transition-colors">
+        <ArrowLeft size={16} /> Back
+      </button>
+      <div className="card p-6">
+        <div className="text-center mb-6">
+          <div className="w-12 h-12 rounded-xl bg-amber-500 flex items-center justify-center mx-auto mb-3">
+            <Lock size={20} className="text-white" />
+          </div>
+          <h1 className="text-xl font-bold text-[var(--text-primary)]">Set Your Date of Birth</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Your date of birth is used as your default UPI PIN.</p>
+        </div>
+        <div className="space-y-4">
+          <div>
+            <label className="label text-sm">Date of Birth (DDMMYY)</label>
+            <input type="text" className="input text-center text-lg font-mono tracking-widest"
+              placeholder="e.g. 150899" maxLength={6} pattern="\d{6}"
+              value={dob} onChange={(e) => setDob(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+            <p className="text-xs text-[var(--text-muted)] mt-1">Format: DDMMYY (e.g. 04062004 → 040604)</p>
+          </div>
+          <button
+            onClick={async () => {
+              if (dob.length !== 6) return toast.error('DOB must be exactly 6 digits')
+              try {
+                await setDobMutation({ dob_string: dob }).unwrap()
+                toast.success('DOB saved! Default UPI PIN set to your DOB.')
+                await refetchWallet()
+                setDone(true)
+              } catch (err) {
+                const detail = err?.data?.detail
+                toast.error(Array.isArray(detail) ? detail[0].msg : (detail || 'Failed to save DOB'))
+              }
+            }}
+            disabled={settingDob || dob.length !== 6}
+            className="btn-primary w-full justify-center py-2.5"
+          >
+            {settingDob ? 'Saving...' : 'Save DOB & Set Default PIN'}
+          </button>
+        </div>
       </div>
     </div>
   )
